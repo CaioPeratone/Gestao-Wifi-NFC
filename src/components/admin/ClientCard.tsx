@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { copyToClipboard } from '../../utils/clipboard';
-import { getPublicWifiUrl, getLocalWifiPath, getPublicBaseUrl } from '../../utils/url';
+import { getPublicWifiUrl, getPublicBaseUrl } from '../../utils/url';
 
 interface ClientCardProps {
   client: Client;
@@ -37,15 +37,22 @@ export function ClientCard({
   const [copiedLink, setCopiedLink] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Definitive production URL for GitHub Pages to be burned into physical NFC tags
+  // URL definitiva de produção para ser gravada na tag NFC
   const nfcProductionUrl = getPublicWifiUrl(client.publicId);
+
+  // Imagem padrão usada em todos os clientes
+  const defaultWifiImage = `${import.meta.env.BASE_URL}default-wifi.png`;
 
   const handleCopyLink = async () => {
     const success = await copyToClipboard(nfcProductionUrl);
+
     if (success) {
       setCopiedLink(true);
       showToast('URL definitiva para a tag NFC copiada!', 'success');
-      setTimeout(() => setCopiedLink(false), 2000);
+
+      setTimeout(() => {
+        setCopiedLink(false);
+      }, 2000);
     } else {
       showToast('Não foi possível copiar o link', 'error');
     }
@@ -69,34 +76,22 @@ export function ClientCard({
           : 'border-rose-900/30 bg-slate-900/50 opacity-80'
       }`}
     >
-      {/* Top row: Logo, Business name, Status badge */}
+      {/* Topo: imagem padrão, nome e status */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3.5 min-w-0">
-          {client.logoUrl ? (
-            <div className="w-13 h-13 rounded-xl bg-slate-800 border border-slate-700/80 p-1 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
-              <img
-                src={client.logoUrl}
-                alt={client.businessName}
-                className="max-w-full max-h-full object-contain"
-              />
-            </div>
-          ) : (
-            <div
-              className="w-13 h-13 rounded-xl border flex items-center justify-center font-bold text-lg shrink-0 shadow-sm"
-              style={{
-                backgroundColor: client.backgroundColor || '#0f172a',
-                borderColor: 'rgba(255,255,255,0.15)',
-                color: '#ffffff',
-              }}
-            >
-              {client.businessName.charAt(0).toUpperCase()}
-            </div>
-          )}
+          <div className="w-13 h-13 rounded-xl bg-white border border-slate-700/80 p-1.5 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+            <img
+              src={defaultWifiImage}
+              alt="Wi-Fi"
+              className="max-w-full max-h-full object-contain"
+            />
+          </div>
 
           <div className="min-w-0">
             <h4 className="font-bold text-base text-slate-100 truncate group-hover:text-blue-400 transition-colors">
               {client.businessName}
             </h4>
+
             <div className="flex items-center gap-2 mt-1">
               <span
                 className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-wide ${
@@ -110,8 +105,10 @@ export function ClientCard({
                     client.active ? 'bg-emerald-400' : 'bg-rose-400'
                   }`}
                 />
+
                 {client.active ? 'Ativo' : 'Desativado'}
               </span>
+
               <span className="text-[11px] text-slate-400 flex items-center gap-1">
                 <Calendar className="w-3 h-3" />
                 {formattedDate}
@@ -120,21 +117,24 @@ export function ClientCard({
           </div>
         </div>
 
-        {/* Color preview dot */}
+        {/* Cor de fundo configurada para o cliente */}
         <div
           className="w-4 h-4 rounded-full border border-slate-700/80 shadow-inner shrink-0"
-          style={{ backgroundColor: client.backgroundColor }}
+          style={{
+            backgroundColor: client.backgroundColor,
+          }}
           title={`Cor de fundo do cartão: ${client.backgroundColor}`}
         />
       </div>
 
-      {/* Network details */}
+      {/* Dados da rede */}
       <div className="mt-4 p-3 bg-slate-950/60 border border-slate-800/80 rounded-xl space-y-2">
         <div className="flex items-center justify-between text-xs">
           <span className="text-slate-400 flex items-center gap-1.5">
             <Wifi className="w-3.5 h-3.5 text-blue-400" />
             Rede (SSID):
           </span>
+
           <span className="font-semibold text-slate-200 font-mono">
             {client.ssid}
           </span>
@@ -145,6 +145,7 @@ export function ClientCard({
             <Lock className="w-3.5 h-3.5 text-amber-400" />
             Senha:
           </span>
+
           <div className="flex items-center gap-1.5">
             <span className="font-mono text-slate-200 font-medium">
               {client.wifiPassword ? (
@@ -154,9 +155,12 @@ export function ClientCard({
                   '••••••••'
                 )
               ) : (
-                <span className="text-slate-400 italic">Rede Aberta</span>
+                <span className="text-slate-400 italic">
+                  Rede Aberta
+                </span>
               )}
             </span>
+
             {client.wifiPassword && (
               <button
                 type="button"
@@ -175,12 +179,18 @@ export function ClientCard({
         </div>
       </div>
 
-      {/* Public NFC URL snippet */}
+      {/* URL pública da NFC */}
       <div className="mt-3.5 flex items-center justify-between gap-2 p-2 rounded-lg bg-slate-800/60 border border-slate-700/50 text-xs">
         <div className="min-w-0 flex-1 truncate font-mono text-slate-300">
-          <span className="text-slate-400 truncate">{getPublicBaseUrl()}?wifi=</span>
-          <span className="font-semibold text-blue-400">{client.publicId}</span>
+          <span className="text-slate-400 truncate">
+            {getPublicBaseUrl()}?wifi=
+          </span>
+
+          <span className="font-semibold text-blue-400">
+            {client.publicId}
+          </span>
         </div>
+
         <button
           onClick={handleCopyLink}
           className={`flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-semibold transition-colors shrink-0 ${
@@ -204,10 +214,9 @@ export function ClientCard({
         </button>
       </div>
 
-      {/* Action buttons footer */}
+      {/* Botões */}
       <div className="mt-4 pt-3.5 border-t border-slate-800 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
-          {/* View Public Page in new tab */}
           <a
             href={nfcProductionUrl}
             target="_blank"
@@ -216,10 +225,12 @@ export function ClientCard({
             title="Abrir página pública de Wi-Fi em nova aba"
           >
             <ExternalLink className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Visualizar</span>
+
+            <span className="hidden sm:inline">
+              Visualizar
+            </span>
           </a>
 
-          {/* Show QR Code modal */}
           <button
             onClick={() => onShowQr(client)}
             className="p-1.5 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 transition-colors"
@@ -228,7 +239,6 @@ export function ClientCard({
             <QrCode className="w-3.5 h-3.5" />
           </button>
 
-          {/* Toggle active status */}
           <button
             onClick={() => onToggleStatus(client)}
             className={`p-1.5 rounded-lg border text-xs font-semibold transition-colors ${
@@ -236,14 +246,17 @@ export function ClientCard({
                 ? 'bg-slate-800 hover:bg-amber-950/40 text-slate-300 hover:text-amber-400 border-slate-700/60'
                 : 'bg-emerald-950/40 text-emerald-400 border-emerald-500/30 hover:bg-emerald-900/50'
             }`}
-            title={client.active ? 'Desativar página' : 'Ativar página'}
+            title={
+              client.active
+                ? 'Desativar página'
+                : 'Ativar página'
+            }
           >
             <Power className="w-3.5 h-3.5" />
           </button>
         </div>
 
         <div className="flex items-center gap-1.5">
-          {/* Edit Client */}
           <button
             onClick={() => onEdit(client)}
             className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700/60 transition-colors"
@@ -253,7 +266,6 @@ export function ClientCard({
             Editar
           </button>
 
-          {/* Delete Client */}
           <button
             onClick={() => onDelete(client)}
             className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-950/30 rounded-lg transition-colors"
