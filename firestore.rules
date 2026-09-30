@@ -2,21 +2,11 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    // Clients collection - full administrative management for logged-in admin
     match /clients/{clientId} {
-      allow read, write: if isSignedIn();
+      allow read, write: if true;
     }
-
-    // Public Wi-Fi projection collection - anyone with tag ID can view public connection card
     match /publicWifiPages/{publicId} {
-      allow get: if true;
-      allow list: if false;
-      allow write: if isSignedIn();
+      allow read, write: if true;
     }
   }
 }
