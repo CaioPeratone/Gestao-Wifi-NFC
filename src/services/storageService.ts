@@ -1,6 +1,6 @@
 import {
   ref,
-  uploadBytes,
+  uploadBytesResumable,
   getDownloadURL,
   deleteObject,
 } from 'firebase/storage';
@@ -11,25 +11,28 @@ const ALLOWED_TYPES = [
   'image/jpeg',
   'image/jpg',
   'image/webp',
-  'image/svg+xml',
 ];
+
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
+const UPLOAD_TIMEOUT_MS = 15000; // 15 segundos
 
 /**
- * Validates file type and size
+ * Valida tipo e tamanho da imagem
  */
-export function validateImageFile(file: File): { valid: boolean; error?: string } {
+export function validateImageFile(
+  file: File
+): { valid: boolean; error?: string } {
   if (!ALLOWED_TYPES.includes(file.type)) {
     return {
       valid: false,
-      error: 'Formato inválido. Envie uma imagem PNG, JPG, JPEG, WEBP ou SVG.',
+      error: 'Formato inválido. Envie PNG, JPG, JPEG ou WEBP.',
     };
   }
 
   if (file.size > MAX_FILE_SIZE_BYTES) {
     return {
       valid: false,
-      error: 'O arquivo excede o limite máximo permitido de 5 MB.',
+      error: 'A imagem deve possuir no máximo 5 MB.',
     };
   }
 
@@ -37,38 +40,52 @@ export function validateImageFile(file: File): { valid: boolean; error?: string 
 }
 
 /**
- * Compresses an image client-side before upload to optimize mobile loading speed
+ * Comprime a imagem antes do upload
  */
-export async function compressImage(file: File, maxWidth = 800, maxHeight = 800, quality = 0.85): Promise<Blob> {
-  // SVG does not need raster compression
-  if (file.type === 'image/svg+xml') {
-    return file;
-  }
-
+export async function compressImage(
+  file: File,
+  maxWidth = 800,
+  maxHeight = 800,
+  quality = 0.85
+): Promise<Blob> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        let width = img.width;
-        let height = img.height;
+    const imageUrl = URL.createObjectURL(file);
+    const img = new Image();
+
+    const timeout = window.setTimeout(() => {
+      URL.revokeObjectURL(imageUrl);
+      reject(new Error('Tempo limite ao processar a imagem.'));
+    }, 8000);
+
+    img.onload = () => {
+      window.clearTimeout(timeout);
+
+      try {
+        let width = img.naturalWidth;
+        let height = img.naturalHeight;
+
+        if (!width || !height) {
+          URL.revokeObjectURL(imageUrl);
+          reject(new Error('Não foi possível identificar o tamanho da imagem.'));
+          return;
+        }
 
         if (width > maxWidth || height > maxHeight) {
-          if (width > height) {
-            height = Math.round((height * maxWidth) / width);
-            width = maxWidth;
-          } else {
-            width = Math.round((width * maxHeight) / height);
-            height = maxHeight;
-          }
+          const ratio = Math.min(maxWidth / width, maxHeight / height);
+
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
         }
 
         const canvas = document.createElement('canvas');
+
         canvas.width = width;
         canvas.height = height;
 
         const ctx = canvas.getContext('2d');
+
         if (!ctx) {
+          URL.revokeObjectURL(imageUrl);
           resolve(file);
           return;
         }
@@ -77,6 +94,8 @@ export async function compressImage(file: File, maxWidth = 800, maxHeight = 800,
 
         canvas.toBlob(
           (blob) => {
+            URL.revokeObjectURL(imageUrl);
+
             if (blob) {
               resolve(blob);
             } else {
@@ -86,69 +105,133 @@ export async function compressImage(file: File, maxWidth = 800, maxHeight = 800,
           'image/webp',
           quality
         );
-      };
-      img.onerror = () => reject(new Error('Erro ao processar imagem para compressão'));
-      img.src = event.target?.result as string;
+      } catch (error) {
+        URL.revokeObjectURL(imageUrl);
+        reject(error);
+      }
     };
-    reader.onerror = () => reject(new Error('Erro ao ler arquivo'));
-    reader.readAsDataURL(file);
+
+    img.onerror = () => {
+      window.clearTimeout(timeout);
+      URL.revokeObjectURL(imageUrl);
+
+      reject(new Error('Não foi possível processar a imagem selecionada.'));
+    };
+
+    img.src = imageUrl;
   });
 }
 
 /**
- * Uploads client logo to Firebase Storage.
- * Falls back to high-quality compressed Base64 Data URL if storage encounters CORS or bucket errors.
+ * Faz upload da logo para o Firebase Storage
  */
 export async function uploadLogo(
   clientId: string,
   file: File
 ): Promise<string> {
   const validation = validateImageFile(file);
+
   if (!validation.valid) {
     throw new Error(validation.error);
   }
 
-  try {
-    const compressedBlob = await compressImage(file);
-    const extension = file.type === 'image/svg+xml' ? 'svg' : 'webp';
-    const timestamp = Date.now();
-    const storagePath = `logos/${clientId}/${timestamp}_logo.${extension}`;
-    const storageRef = ref(storage, storagePath);
+  // Primeiro comprime
+  const compressedBlob = await compressImage(file);
 
-    const snapshot = await uploadBytes(storageRef, compressedBlob, {
-      contentType: file.type === 'image/svg+xml' ? 'image/svg+xml' : 'image/webp',
-    });
+  const timestamp = Date.now();
 
-    const downloadUrl = await getDownloadURL(snapshot.ref);
-    return downloadUrl;
-  } catch (storageError) {
-    console.warn(
-      'Upload no Firebase Storage falhou. Ativando fallback seguro em Base64 Data URL:',
-      storageError
+  const storagePath =
+    `logos/${clientId}/${timestamp}_logo.webp`;
+
+  const storageRef = ref(storage, storagePath);
+
+  return new Promise<string>((resolve, reject) => {
+    const uploadTask = uploadBytesResumable(
+      storageRef,
+      compressedBlob,
+      {
+        contentType: 'image/webp',
+        cacheControl: 'public,max-age=31536000',
+      }
     );
 
-    // Fallback to Data URL so user is never blocked
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => reject(new Error('Falha ao converter imagem'));
-      reader.readAsDataURL(file);
-    });
-  }
+    const timeout = window.setTimeout(() => {
+      uploadTask.cancel();
+
+      reject(
+        new Error(
+          'O upload da imagem demorou demais. Verifique a configuração do Firebase Storage.'
+        )
+      );
+    }, UPLOAD_TIMEOUT_MS);
+
+    uploadTask.on(
+      'state_changed',
+
+      // progresso
+      () => {},
+
+      // erro
+      (error) => {
+        window.clearTimeout(timeout);
+
+        console.error('Erro no upload da logo:', error);
+
+        reject(
+          new Error(
+            `Não foi possível enviar a logo para o Firebase Storage. ${error.message}`
+          )
+        );
+      },
+
+      // concluído
+      async () => {
+        window.clearTimeout(timeout);
+
+        try {
+          const downloadUrl = await getDownloadURL(
+            uploadTask.snapshot.ref
+          );
+
+          resolve(downloadUrl);
+        } catch (error) {
+          console.error(
+            'Erro ao obter URL da logo:',
+            error
+          );
+
+          reject(
+            new Error(
+              'A imagem foi enviada, mas não foi possível obter a URL.'
+            )
+          );
+        }
+      }
+    );
+  });
 }
 
 /**
- * Deletes a logo from Firebase Storage if it's a storage URL
+ * Remove logo do Firebase Storage
  */
-export async function deleteLogo(logoUrl?: string): Promise<void> {
-  if (!logoUrl || !logoUrl.includes('firebasestorage.googleapis.com')) {
+export async function deleteLogo(
+  logoUrl?: string
+): Promise<void> {
+  if (
+    !logoUrl ||
+    !logoUrl.includes('firebasestorage.googleapis.com')
+  ) {
     return;
   }
 
   try {
     const fileRef = ref(storage, logoUrl);
+
     await deleteObject(fileRef);
   } catch (error) {
-    console.warn('Erro ao remover arquivo do Firebase Storage:', error);
+    console.warn(
+      'Erro ao remover logo:',
+      error
+    );
   }
 }
