@@ -21,62 +21,86 @@ import { useToast } from '../../context/ToastContext';
 import {
   Plus,
   Search,
-  Wifi,
   Users,
   CheckCircle2,
   XCircle,
   Loader2,
-  Sparkles,
   Radio,
-  SlidersHorizontal,
   X,
 } from 'lucide-react';
 
 export function AdminDashboardPage() {
-  const { user, isAdmin, loading: authLoading } = useAuth();
+  const { isAdmin, loading: authLoading } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
 
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
-  // Modal States
-  const [isFormModalOpen, setIsFormModalOpen] = useState(false);
-  const [clientToEdit, setClientToEdit] = useState<Client | null>(null);
+  const [statusFilter, setStatusFilter] = useState<
+    'all' | 'active' | 'inactive'
+  >('all');
 
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
+  const [isFormModalOpen, setIsFormModalOpen] =
+    useState(false);
 
-  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
-  const [clientForQr, setClientForQr] = useState<Client | null>(null);
+  const [clientToEdit, setClientToEdit] =
+    useState<Client | null>(null);
 
-  const [isNfcGuideOpen, setIsNfcGuideOpen] = useState(false);
-  const [isWhitelistOpen, setIsWhitelistOpen] = useState(false);
-  const [isDomainModalOpen, setIsDomainModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] =
+    useState(false);
+
+  const [clientToDelete, setClientToDelete] =
+    useState<Client | null>(null);
+
+  const [isQrModalOpen, setIsQrModalOpen] =
+    useState(false);
+
+  const [clientForQr, setClientForQr] =
+    useState<Client | null>(null);
+
+  const [isNfcGuideOpen, setIsNfcGuideOpen] =
+    useState(false);
+
+  const [isWhitelistOpen, setIsWhitelistOpen] =
+    useState(false);
+
+  const [isDomainModalOpen, setIsDomainModalOpen] =
+    useState(false);
+
   const [, setDomainRefreshKey] = useState(0);
 
-  // Redirect to login if unauthenticated
   useEffect(() => {
     if (!authLoading && !isAdmin) {
-      navigate('/admin/login', { replace: true });
+      navigate('/admin/login', {
+        replace: true,
+      });
     }
   }, [authLoading, isAdmin, navigate]);
 
-  // Subscribe to real-time client records
   useEffect(() => {
     if (!isAdmin) return;
 
     setLoading(true);
+
     const unsubscribe = subscribeClients(
       (data) => {
         setClients(data);
         setLoading(false);
       },
+
       (error) => {
-        console.error('Erro ao escutar clientes:', error);
-        showToast('Erro ao carregar clientes do Firestore', 'error');
+        console.error(
+          'Erro ao escutar clientes:',
+          error
+        );
+
+        showToast(
+          'Erro ao carregar clientes do Firestore',
+          'error'
+        );
+
         setLoading(false);
       }
     );
@@ -84,86 +108,150 @@ export function AdminDashboardPage() {
     return () => unsubscribe();
   }, [isAdmin, showToast]);
 
-  // Metrics computation
   const metrics = useMemo(() => {
     const total = clients.length;
-    const active = clients.filter((c) => c.active).length;
+
+    const active = clients.filter(
+      (client) => client.active
+    ).length;
+
     const inactive = total - active;
-    return { total, active, inactive };
+
+    return {
+      total,
+      active,
+      inactive,
+    };
   }, [clients]);
 
-  // Filtered clients list (In-memory search by name, ssid, or publicId)
   const filteredClients = useMemo(() => {
-    const query = searchTerm.toLowerCase().trim();
-    return clients.filter((c) => {
+    const search =
+      searchTerm.toLowerCase().trim();
+
+    return clients.filter((client) => {
       const matchesSearch =
-        !query ||
-        c.businessName.toLowerCase().includes(query) ||
-        c.ssid.toLowerCase().includes(query) ||
-        c.publicId.toLowerCase().includes(query);
+        !search ||
+        client.businessName
+          .toLowerCase()
+          .includes(search) ||
+        client.ssid
+          .toLowerCase()
+          .includes(search) ||
+        client.publicId
+          .toLowerCase()
+          .includes(search);
 
       const matchesStatus =
         statusFilter === 'all' ||
-        (statusFilter === 'active' && c.active) ||
-        (statusFilter === 'inactive' && !c.active);
+        (statusFilter === 'active' &&
+          client.active) ||
+        (statusFilter === 'inactive' &&
+          !client.active);
 
-      return matchesSearch && matchesStatus;
+      return (
+        matchesSearch &&
+        matchesStatus
+      );
     });
-  }, [clients, searchTerm, statusFilter]);
+  }, [
+    clients,
+    searchTerm,
+    statusFilter,
+  ]);
 
-  // Actions
   const handleOpenNewModal = () => {
     setClientToEdit(null);
     setIsFormModalOpen(true);
   };
 
-  const handleOpenEditModal = (client: Client) => {
+  const handleOpenEditModal = (
+    client: Client
+  ) => {
     setClientToEdit(client);
     setIsFormModalOpen(true);
   };
 
-  const handleOpenDeleteModal = (client: Client) => {
+  const handleOpenDeleteModal = (
+    client: Client
+  ) => {
     setClientToDelete(client);
     setIsDeleteModalOpen(true);
   };
 
-  const handleOpenQrModal = (client: Client) => {
+  const handleOpenQrModal = (
+    client: Client
+  ) => {
     setClientForQr(client);
     setIsQrModalOpen(true);
   };
 
-  const handleFormSubmit = async (formData: ClientFormData) => {
+  const handleFormSubmit = async (
+    formData: ClientFormData
+  ) => {
     if (clientToEdit) {
-      await updateClient(clientToEdit.id, clientToEdit.publicId, formData);
-      showToast('Alterações salvas com sucesso!', 'success');
+      await updateClient(
+        clientToEdit.id,
+        clientToEdit.publicId,
+        formData
+      );
+
+      showToast(
+        'Alterações salvas com sucesso!',
+        'success'
+      );
     } else {
-      const res = await createClient(formData);
-      showToast('Cliente criado com sucesso! Link NFC gerado.', 'success');
+      await createClient(formData);
+
+      showToast(
+        'Cliente criado com sucesso! Link NFC gerado.',
+        'success'
+      );
     }
   };
 
-  const handleConfirmDelete = async () => {
-    if (!clientToDelete) return;
-    try {
-      await deleteClient(
-        clientToDelete.id,
-        clientToDelete.publicId,
-        clientToDelete.logoUrl
-      );
-      showToast('Cliente excluído com sucesso.', 'success');
-    } catch (err: any) {
-      console.error('Erro ao excluir cliente:', err);
-      showToast('Falha ao excluir cliente.', 'error');
-    }
-  };
+  const handleConfirmDelete =
+    async () => {
+      if (!clientToDelete) {
+        return;
+      }
 
-  const handleToggleStatus = async (client: Client) => {
+      try {
+        await deleteClient(
+          clientToDelete.id,
+          clientToDelete.publicId
+        );
+
+        showToast(
+          'Cliente excluído com sucesso.',
+          'success'
+        );
+
+        setIsDeleteModalOpen(false);
+        setClientToDelete(null);
+      } catch (err) {
+        console.error(
+          'Erro ao excluir cliente:',
+          err
+        );
+
+        showToast(
+          'Falha ao excluir cliente.',
+          'error'
+        );
+      }
+    };
+
+  const handleToggleStatus = async (
+    client: Client
+  ) => {
     try {
-      const newStatus = await toggleClientStatus(
-        client.id,
-        client.publicId,
-        client.active
-      );
+      const newStatus =
+        await toggleClientStatus(
+          client.id,
+          client.publicId,
+          client.active
+        );
+
       showToast(
         newStatus
           ? `Página de ${client.businessName} ativada!`
@@ -171,8 +259,15 @@ export function AdminDashboardPage() {
         'info'
       );
     } catch (err) {
-      console.error('Erro ao alternar status:', err);
-      showToast('Erro ao atualizar status', 'error');
+      console.error(
+        'Erro ao alternar status:',
+        err
+      );
+
+      showToast(
+        'Erro ao atualizar status',
+        'error'
+      );
     }
   };
 
@@ -186,21 +281,25 @@ export function AdminDashboardPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      {/* Top Header */}
       <Header
-        onOpenNfcGuide={() => setIsNfcGuideOpen(true)}
-        onOpenWhitelist={() => setIsWhitelistOpen(true)}
-        onOpenDomainConfig={() => setIsDomainModalOpen(true)}
+        onOpenNfcGuide={() =>
+          setIsNfcGuideOpen(true)
+        }
+        onOpenWhitelist={() =>
+          setIsWhitelistOpen(true)
+        }
+        onOpenDomainConfig={() =>
+          setIsDomainModalOpen(true)
+        }
       />
 
-      {/* Main Content */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {/* Welcome and Primary CTA */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
               Painel de Clientes NFC
             </h1>
+
             <p className="text-sm text-slate-400 mt-1">
               Gerencie estabelecimentos, redes Wi-Fi e URLs gravadas nas placas.
             </p>
@@ -215,69 +314,77 @@ export function AdminDashboardPage() {
           </button>
         </div>
 
-        {/* Metric KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {/* Total Clientes */}
           <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 flex items-center justify-between shadow-sm">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                 Total de Clientes
               </p>
+
               <h3 className="text-3xl font-extrabold text-white mt-1">
                 {metrics.total}
               </h3>
             </div>
+
             <div className="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center">
               <Users className="w-6 h-6" />
             </div>
           </div>
 
-          {/* Clientes Ativos */}
           <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 flex items-center justify-between shadow-sm">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-emerald-400">
                 Clientes Ativos
               </p>
+
               <h3 className="text-3xl font-extrabold text-emerald-300 mt-1">
                 {metrics.active}
               </h3>
             </div>
+
             <div className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center">
               <CheckCircle2 className="w-6 h-6" />
             </div>
           </div>
 
-          {/* Clientes Desativados */}
           <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 flex items-center justify-between shadow-sm">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-rose-400">
                 Páginas Desativadas
               </p>
+
               <h3 className="text-3xl font-extrabold text-rose-300 mt-1">
                 {metrics.inactive}
               </h3>
             </div>
+
             <div className="w-12 h-12 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center">
               <XCircle className="w-6 h-6" />
             </div>
           </div>
         </div>
 
-        {/* Filter and Search Bar */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
-          {/* Search Input */}
           <div className="relative flex-1 max-w-md">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+
             <input
               type="text"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) =>
+                setSearchTerm(
+                  e.target.value
+                )
+              }
               placeholder="Pesquisar por estabelecimento, SSID ou publicId..."
               className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-9 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+
             {searchTerm && (
               <button
-                onClick={() => setSearchTerm('')}
+                onClick={() =>
+                  setSearchTerm('')
+                }
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
               >
                 <X className="w-4 h-4" />
@@ -285,10 +392,11 @@ export function AdminDashboardPage() {
             )}
           </div>
 
-          {/* Status Tabs */}
           <div className="flex items-center p-1 bg-slate-900 border border-slate-800 rounded-xl text-xs font-semibold">
             <button
-              onClick={() => setStatusFilter('all')}
+              onClick={() =>
+                setStatusFilter('all')
+              }
               className={`px-3 py-1.5 rounded-lg transition-colors ${
                 statusFilter === 'all'
                   ? 'bg-slate-800 text-white shadow'
@@ -297,8 +405,11 @@ export function AdminDashboardPage() {
             >
               Todos ({metrics.total})
             </button>
+
             <button
-              onClick={() => setStatusFilter('active')}
+              onClick={() =>
+                setStatusFilter('active')
+              }
               className={`px-3 py-1.5 rounded-lg transition-colors ${
                 statusFilter === 'active'
                   ? 'bg-slate-800 text-emerald-400 shadow'
@@ -307,8 +418,11 @@ export function AdminDashboardPage() {
             >
               Ativos ({metrics.active})
             </button>
+
             <button
-              onClick={() => setStatusFilter('inactive')}
+              onClick={() =>
+                setStatusFilter('inactive')
+              }
               className={`px-3 py-1.5 rounded-lg transition-colors ${
                 statusFilter === 'inactive'
                   ? 'bg-slate-800 text-rose-400 shadow'
@@ -320,102 +434,140 @@ export function AdminDashboardPage() {
           </div>
         </div>
 
-        {/* Clients Grid */}
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div
-                key={i}
-                className="h-64 rounded-2xl bg-slate-900/40 border border-slate-800/60 animate-pulse"
-              />
-            ))}
+            {[1, 2, 3, 4, 5, 6].map(
+              (item) => (
+                <div
+                  key={item}
+                  className="h-64 rounded-2xl bg-slate-900/40 border border-slate-800/60 animate-pulse"
+                />
+              )
+            )}
           </div>
         ) : filteredClients.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filteredClients.map((client) => (
-              <ClientCard
-                key={client.id}
-                client={client}
-                onEdit={handleOpenEditModal}
-                onDelete={handleOpenDeleteModal}
-                onToggleStatus={handleToggleStatus}
-                onShowQr={handleOpenQrModal}
-              />
-            ))}
+            {filteredClients.map(
+              (client) => (
+                <ClientCard
+                  key={client.id}
+                  client={client}
+                  onEdit={
+                    handleOpenEditModal
+                  }
+                  onDelete={
+                    handleOpenDeleteModal
+                  }
+                  onToggleStatus={
+                    handleToggleStatus
+                  }
+                  onShowQr={
+                    handleOpenQrModal
+                  }
+                />
+              )
+            )}
           </div>
         ) : (
-          /* Empty State */
           <div className="p-12 text-center rounded-3xl bg-slate-900/40 border border-slate-800/80 flex flex-col items-center justify-center max-w-lg mx-auto space-y-4">
             <div className="w-16 h-16 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center text-slate-400">
               <Radio className="w-8 h-8" />
             </div>
+
             <div>
               <h3 className="text-lg font-bold text-slate-200">
                 {searchTerm
                   ? 'Nenhum resultado encontrado'
                   : 'Nenhum cliente cadastrado ainda'}
               </h3>
+
               <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
                 {searchTerm
                   ? `Não encontramos estabelecimentos correspondentes a "${searchTerm}".`
                   : 'Cadastre seu primeiro estabelecimento para gerar uma página exclusiva e gravar na placa NFC.'}
               </p>
             </div>
+
             {searchTerm ? (
               <button
-                onClick={() => setSearchTerm('')}
+                onClick={() =>
+                  setSearchTerm('')
+                }
                 className="px-4 py-2 text-xs font-semibold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
               >
                 Limpar Pesquisa
               </button>
             ) : (
               <button
-                onClick={handleOpenNewModal}
+                onClick={
+                  handleOpenNewModal
+                }
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm shadow-lg shadow-blue-600/30 transition-all cursor-pointer"
               >
                 <Plus className="w-4 h-4 stroke-[3]" />
-                <span>Cadastrar Primeiro Cliente</span>
+
+                <span>
+                  Cadastrar Primeiro Cliente
+                </span>
               </button>
             )}
           </div>
         )}
       </main>
 
-      {/* Modals */}
       <ClientFormModal
         isOpen={isFormModalOpen}
-        onClose={() => setIsFormModalOpen(false)}
+        onClose={() => {
+          setIsFormModalOpen(false);
+          setClientToEdit(null);
+        }}
         onSubmit={handleFormSubmit}
         clientToEdit={clientToEdit}
       />
 
       <DeleteConfirmModal
         isOpen={isDeleteModalOpen}
-        onClose={() => setIsDeleteModalOpen(false)}
+        onClose={() => {
+          setIsDeleteModalOpen(false);
+          setClientToDelete(null);
+        }}
         onConfirm={handleConfirmDelete}
         client={clientToDelete}
       />
 
       <QrCodeModal
         isOpen={isQrModalOpen}
-        onClose={() => setIsQrModalOpen(false)}
+        onClose={() => {
+          setIsQrModalOpen(false);
+          setClientForQr(null);
+        }}
         client={clientForQr}
       />
 
       <NfcHelpModal
         isOpen={isNfcGuideOpen}
-        onClose={() => setIsNfcGuideOpen(false)}
+        onClose={() =>
+          setIsNfcGuideOpen(false)
+        }
       />
 
       <AdminWhitelistModal
         isOpen={isWhitelistOpen}
-        onClose={() => setIsWhitelistOpen(false)}
+        onClose={() =>
+          setIsWhitelistOpen(false)
+        }
       />
 
       <DomainConfigModal
         isOpen={isDomainModalOpen}
-        onClose={() => setIsDomainModalOpen(false)}
-        onDomainUpdated={() => setDomainRefreshKey((k) => k + 1)}
+        onClose={() =>
+          setIsDomainModalOpen(false)
+        }
+        onDomainUpdated={() =>
+          setDomainRefreshKey(
+            (key) => key + 1
+          )
+        }
       />
     </div>
   );
