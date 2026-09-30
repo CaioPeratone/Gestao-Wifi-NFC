@@ -1,12 +1,12 @@
 {
-  "projectId": "resounding-catcher-c07pf",
-  "appId": "1:183484045271:web:9cb98349c321d6d33ddd92",
-  "apiKey": "AIzaSyCUSD9P_i8a_zddDLGglHYl40o17SblfJo",
-  "authDomain": "resounding-catcher-c07pf.firebaseapp.com",
+  "projectId": "gestao-wifi-nfc",
+  "appId": "1:801273265341:web:f523a1b3f81998fc9b8bd4",
+  "apiKey": "AIzaSyCS2bBP2w__EO7CzJUTAuKJVmtsyXsSLnw",
+  "authDomain": "gestao-wifi-nfc.firebaseapp.com",
   "firestoreDatabaseId": "ai-studio-dc10553c-c1b4-47e0-b091-e6209d4733f2",
-  "storageBucket": "resounding-catcher-c07pf.firebasestorage.app",
-  "messagingSenderId": "183484045271",
+  "storageBucket": "gestao-wifi-nfc.firebasestorage.app",
+  "messagingSenderId": "801273265341",
   "measurementId": "",
-  "oAuthClientId": "183484045271-affa06lu8rp0kncucum5sm3e9f15veq8.apps.googleusercontent.com",
+  "oAuthClientId": "801273265341-ggqfe0h0f52pqk6inu8m9uf21vtnherj.apps.googleusercontent.com",
   "recaptchaSiteKey": ""
 }
