@@ -4,7 +4,6 @@ export interface Client {
   businessName: string;
   ssid: string;
   wifiPassword?: string;
-  logoUrl?: string;
   backgroundColor: string;
   active: boolean;
   customTitle?: string;
@@ -18,7 +17,6 @@ export interface PublicWifiData {
   businessName: string;
   ssid: string;
   wifiPassword?: string;
-  logoUrl?: string;
   backgroundColor: string;
   active: boolean;
   customTitle?: string;
@@ -30,7 +28,6 @@ export interface ClientFormData {
   businessName: string;
   ssid: string;
   wifiPassword?: string;
-  logoUrl?: string;
   backgroundColor: string;
   active: boolean;
   customTitle?: string;
@@ -46,7 +43,11 @@ export interface AdminUser {
   createdAt?: string;
 }
 
-export type ToastType = 'success' | 'error' | 'info' | 'warning';
+export type ToastType =
+  | 'success'
+  | 'error'
+  | 'info'
+  | 'warning';
 
 export interface ToastMessage {
   id: string;
