@@ -26,8 +26,8 @@ export function generateUniquePublicId(): string {
 
 function withTimeout<T>(
   promise: Promise<T>,
-  timeoutMs = 10000,
-  errorMsg = 'Tempo limite excedido ao salvar no Firestore. Verifique sua conexão.'
+  timeoutMs = 8000,
+  errorMsg = 'Tempo limite excedido ao salvar no Firestore. Verifique se o Cloud Firestore foi criado no Firebase Console do projeto gestao-wifi-nfc.'
 ): Promise<T> {
   return Promise.race([
     promise,

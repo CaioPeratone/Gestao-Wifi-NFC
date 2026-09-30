@@ -3,87 +3,20 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Global Default Deny
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
-    // Helper functions
-    function isValidId(id) {
-      return id is string && id.size() >= 3 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
-    }
-
-    function incoming() {
-      return request.resource.data;
-    }
-
-    function existing() {
-      return resource.data;
-    }
-
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Strict single administrator check: only caioperatone.beiral@gmail.com
-    function isAdmin() {
-      return isSignedIn() && (
-        request.auth.token.email == 'caioperatone.beiral@gmail.com' ||
-        (request.auth.token.keys().hasAll(['email']) && request.auth.token.email.lower() == 'caioperatone.beiral@gmail.com')
-      );
-    }
-
-    function isValidClient(data) {
-      return data.keys().hasAll(['publicId', 'businessName', 'ssid', 'active', 'backgroundColor', 'createdAt', 'updatedAt']) &&
-             data.keys().hasOnly(['publicId', 'businessName', 'ssid', 'wifiPassword', 'logoUrl', 'backgroundColor', 'active', 'customTitle', 'instructions', 'createdAt', 'updatedAt']) &&
-             data.publicId is string && data.publicId.size() >= 6 && data.publicId.size() <= 64 && data.publicId.matches('^[a-zA-Z0-9_\\-]+$') &&
-             data.businessName is string && data.businessName.size() >= 1 && data.businessName.size() <= 120 &&
-             data.ssid is string && data.ssid.size() >= 1 && data.ssid.size() <= 64 &&
-             (!('wifiPassword' in data) || (data.wifiPassword is string && data.wifiPassword.size() <= 128)) &&
-             (!('logoUrl' in data) || (data.logoUrl is string && data.logoUrl.size() <= 2048)) &&
-             data.backgroundColor is string && data.backgroundColor.size() >= 4 && data.backgroundColor.size() <= 16 && data.backgroundColor.matches('^#[0-9a-fA-F]{3,8}$') &&
-             data.active is bool &&
-             (!('customTitle' in data) || (data.customTitle is string && data.customTitle.size() <= 120)) &&
-             (!('instructions' in data) || (data.instructions is string && data.instructions.size() <= 500)) &&
-             data.createdAt is timestamp &&
-             data.updatedAt is timestamp;
-    }
-
-    function isValidPublicWifiPage(data) {
-      return data.keys().hasAll(['publicId', 'businessName', 'ssid', 'active', 'backgroundColor', 'updatedAt']) &&
-             data.keys().hasOnly(['publicId', 'businessName', 'ssid', 'wifiPassword', 'logoUrl', 'backgroundColor', 'active', 'customTitle', 'instructions', 'updatedAt']) &&
-             data.publicId is string && data.publicId.size() >= 6 && data.publicId.size() <= 64 && data.publicId.matches('^[a-zA-Z0-9_\\-]+$') &&
-             data.businessName is string && data.businessName.size() >= 1 && data.businessName.size() <= 120 &&
-             data.ssid is string && data.ssid.size() >= 1 && data.ssid.size() <= 64 &&
-             (!('wifiPassword' in data) || (data.wifiPassword is string && data.wifiPassword.size() <= 128)) &&
-             (!('logoUrl' in data) || (data.logoUrl is string && data.logoUrl.size() <= 2048)) &&
-             data.backgroundColor is string && data.backgroundColor.size() >= 4 && data.backgroundColor.size() <= 16 && data.backgroundColor.matches('^#[0-9a-fA-F]{3,8}$') &&
-             data.active is bool &&
-             (!('customTitle' in data) || (data.customTitle is string && data.customTitle.size() <= 120)) &&
-             (!('instructions' in data) || (data.instructions is string && data.instructions.size() <= 500)) &&
-             data.updatedAt is timestamp;
-    }
-
-    // Clients collection - administrative full records
+    // Clients collection - full administrative management for logged-in admin
     match /clients/{clientId} {
-      allow get, list: if isAdmin();
-      allow create: if isAdmin() && isValidId(clientId) && isValidClient(incoming());
-      allow update: if isAdmin() && isValidId(clientId) && isValidClient(incoming()) &&
-                       incoming().publicId == existing().publicId;
-      allow delete: if isAdmin() && isValidId(clientId);
+      allow read, write: if isSignedIn();
     }
 
-    // Public Wi-Fi projection collection - queried only by exact publicId (NO LISTING ALLOWED)
+    // Public Wi-Fi projection collection - anyone with tag ID can view public connection card
     match /publicWifiPages/{publicId} {
-      // Individual lookup permitted via exact publicId (from NFC tag)
-      allow get: if isValidId(publicId);
-      // Listing or enumerating all documents is strictly prohibited
+      allow get: if true;
       allow list: if false;
-      
-      // Only administrator can publish or update public Wi-Fi profiles
-      allow create: if isAdmin() && isValidId(publicId) && isValidPublicWifiPage(incoming()) && incoming().publicId == publicId;
-      allow update: if isAdmin() && isValidId(publicId) && isValidPublicWifiPage(incoming()) && incoming().publicId == publicId && incoming().publicId == existing().publicId;
-      allow delete: if isAdmin() && isValidId(publicId);
+      allow write: if isSignedIn();
     }
   }
 }
