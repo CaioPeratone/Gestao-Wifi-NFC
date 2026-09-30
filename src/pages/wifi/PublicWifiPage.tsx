@@ -10,7 +10,6 @@ import {
   Check,
   Eye,
   EyeOff,
-  AlertTriangle,
   Loader2,
   Lock,
 } from 'lucide-react';
@@ -22,23 +21,20 @@ interface PublicWifiPageProps {
 export function PublicWifiPage(props: PublicWifiPageProps) {
   const routeParams = useParams<{ publicId: string }>();
 
-  // Determine effective publicId from:
-  // 1. Explicit prop
-  // 2. Query param ?wifi=PUBLIC_ID (GitHub Pages primary format)
-  // 3. Hash query param #/?wifi=PUBLIC_ID
-  // 4. Route param /wifi/:publicId
   const getEffectivePublicId = (): string | null => {
     if (props.publicId) return props.publicId;
 
     if (typeof window !== 'undefined') {
       const searchParams = new URLSearchParams(window.location.search);
       const queryWifi = searchParams.get('wifi');
+
       if (queryWifi) return queryWifi;
 
       if (window.location.hash.includes('?')) {
         const hashQuery = window.location.hash.split('?')[1];
         const hashParams = new URLSearchParams(hashQuery);
         const hashWifi = hashParams.get('wifi');
+
         if (hashWifi) return hashWifi;
       }
     }
@@ -52,10 +48,11 @@ export function PublicWifiPage(props: PublicWifiPageProps) {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
-  // Interaction states
   const [showPassword, setShowPassword] = useState(false);
   const [passwordCopied, setPasswordCopied] = useState(false);
   const [ssidCopied, setSsidCopied] = useState(false);
+
+  const defaultWifiImage = `${import.meta.env.BASE_URL}default-wifi.png`;
 
   useEffect(() => {
     async function loadData() {
@@ -67,6 +64,7 @@ export function PublicWifiPage(props: PublicWifiPageProps) {
 
       try {
         const wifiData = await getPublicWifiData(publicId);
+
         if (wifiData) {
           setData(wifiData);
           document.title = `${wifiData.businessName} - Wi-Fi`;
@@ -86,23 +84,32 @@ export function PublicWifiPage(props: PublicWifiPageProps) {
 
   const handleCopyPassword = async () => {
     if (!data?.wifiPassword) return;
+
     const success = await copyToClipboard(data.wifiPassword);
+
     if (success) {
       setPasswordCopied(true);
-      setTimeout(() => setPasswordCopied(false), 3000);
+
+      setTimeout(() => {
+        setPasswordCopied(false);
+      }, 3000);
     }
   };
 
   const handleCopySsid = async () => {
     if (!data?.ssid) return;
+
     const success = await copyToClipboard(data.ssid);
+
     if (success) {
       setSsidCopied(true);
-      setTimeout(() => setSsidCopied(false), 2500);
+
+      setTimeout(() => {
+        setSsidCopied(false);
+      }, 2500);
     }
   };
 
-  // Loading State
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
@@ -117,7 +124,6 @@ export function PublicWifiPage(props: PublicWifiPageProps) {
     );
   }
 
-  // Not Found State (Invalid or deleted publicId)
   if (notFound || !data) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
@@ -125,8 +131,12 @@ export function PublicWifiPage(props: PublicWifiPageProps) {
           <div className="w-14 h-14 rounded-2xl bg-slate-800 border border-slate-700/80 flex items-center justify-center mx-auto text-slate-400">
             <Wifi className="w-7 h-7" />
           </div>
+
           <div>
-            <h2 className="text-lg font-bold">Estabelecimento Não Encontrado</h2>
+            <h2 className="text-lg font-bold">
+              Estabelecimento Não Encontrado
+            </h2>
+
             <p className="text-xs text-slate-400 mt-1 leading-relaxed">
               O link desta placa NFC não foi localizado ou foi removido pelo administrador.
             </p>
@@ -138,8 +148,6 @@ export function PublicWifiPage(props: PublicWifiPageProps) {
 
   const theme = getContrastTheme(data.backgroundColor);
 
-  // Inactive Customer Page (active === false)
-  // As requested: "deve mostrar uma mensagem elegante: 'Página temporariamente indisponível.' Não mostrar SSID nem senha."
   if (!data.active) {
     return (
       <div
@@ -155,26 +163,19 @@ export function PublicWifiPage(props: PublicWifiPageProps) {
             color: theme.textPrimary,
           }}
         >
-          {data.logoUrl ? (
-            <div className="w-20 h-20 rounded-2xl p-1.5 mx-auto flex items-center justify-center overflow-hidden">
-              <img
-                src={data.logoUrl}
-                alt={data.businessName}
-                className="max-w-full max-h-full object-contain"
-              />
-            </div>
-          ) : (
-            <div
-              className="w-16 h-16 rounded-2xl flex items-center justify-center font-bold text-xl mx-auto shadow-md"
-              style={{
-                backgroundColor: theme.fieldBg,
-                color: theme.textPrimary,
-                border: `1px solid ${theme.fieldBorder}`,
-              }}
-            >
-              {data.businessName.charAt(0).toUpperCase()}
-            </div>
-          )}
+          <div
+            className="w-20 h-20 rounded-2xl p-2 mx-auto flex items-center justify-center overflow-hidden"
+            style={{
+              backgroundColor: theme.fieldBg,
+              border: `1px solid ${theme.fieldBorder}`,
+            }}
+          >
+            <img
+              src={defaultWifiImage}
+              alt="Wi-Fi"
+              className="max-w-full max-h-full object-contain"
+            />
+          </div>
 
           <h1 className="text-xl font-bold tracking-tight">
             {data.businessName}
@@ -195,7 +196,6 @@ export function PublicWifiPage(props: PublicWifiPageProps) {
     );
   }
 
-  // Active Public Wi-Fi Card (Mobile-First Digital Card)
   return (
     <div
       className="min-h-screen w-full flex flex-col items-center justify-center p-4 sm:p-6 transition-colors duration-300 select-none"
@@ -210,40 +210,26 @@ export function PublicWifiPage(props: PublicWifiPageProps) {
           color: theme.textPrimary,
         }}
       >
-        {/* LOGO */}
         <div className="flex flex-col items-center text-center space-y-3">
-          {data.logoUrl ? (
-            <div
-              className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl p-2 flex items-center justify-center overflow-hidden transition-transform duration-200"
-              style={{
-                backgroundColor: theme.fieldBg,
-                border: `1px solid ${theme.fieldBorder}`,
-              }}
-            >
-              <img
-                src={data.logoUrl}
-                alt={data.businessName}
-                className="max-w-full max-h-full object-contain"
-              />
-            </div>
-          ) : (
-            <div
-              className="w-18 h-18 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center font-extrabold text-2xl shadow-sm"
-              style={{
-                backgroundColor: theme.fieldBg,
-                color: theme.textPrimary,
-                border: `1px solid ${theme.fieldBorder}`,
-              }}
-            >
-              {data.businessName.charAt(0).toUpperCase()}
-            </div>
-          )}
+          <div
+            className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl p-2 flex items-center justify-center overflow-hidden transition-transform duration-200"
+            style={{
+              backgroundColor: theme.fieldBg,
+              border: `1px solid ${theme.fieldBorder}`,
+            }}
+          >
+            <img
+              src={defaultWifiImage}
+              alt="Wi-Fi"
+              className="max-w-full max-h-full object-contain"
+            />
+          </div>
 
-          {/* Nome do Estabelecimento */}
           <div>
             <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">
               {data.businessName}
             </h1>
+
             <p
               className="text-xs sm:text-sm font-medium mt-0.5 tracking-wide"
               style={{ color: theme.textSecondary }}
@@ -253,9 +239,7 @@ export function PublicWifiPage(props: PublicWifiPageProps) {
           </div>
         </div>
 
-        {/* Informações da Rede & Senha */}
         <div className="mt-6 space-y-3">
-          {/* Campo Rede / SSID */}
           <div
             className="p-3.5 rounded-2xl border transition-all"
             style={{
@@ -271,6 +255,7 @@ export function PublicWifiPage(props: PublicWifiPageProps) {
                 <Wifi className="w-3.5 h-3.5" />
                 Rede Wi-Fi
               </span>
+
               <button
                 type="button"
                 onClick={handleCopySsid}
@@ -281,7 +266,9 @@ export function PublicWifiPage(props: PublicWifiPageProps) {
                 {ssidCopied ? (
                   <>
                     <Check className="w-3.5 h-3.5 text-emerald-500" />
-                    <span className="text-emerald-500">Copiada</span>
+                    <span className="text-emerald-500">
+                      Copiada
+                    </span>
                   </>
                 ) : (
                   <>
@@ -291,6 +278,7 @@ export function PublicWifiPage(props: PublicWifiPageProps) {
                 )}
               </button>
             </div>
+
             <p
               className="font-mono text-base font-bold tracking-tight truncate"
               style={{ color: theme.textPrimary }}
@@ -299,7 +287,6 @@ export function PublicWifiPage(props: PublicWifiPageProps) {
             </p>
           </div>
 
-          {/* Campo Senha */}
           {data.wifiPassword ? (
             <div
               className="p-3.5 rounded-2xl border transition-all"
@@ -316,6 +303,7 @@ export function PublicWifiPage(props: PublicWifiPageProps) {
                   <Lock className="w-3.5 h-3.5" />
                   Senha
                 </span>
+
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
@@ -335,6 +323,7 @@ export function PublicWifiPage(props: PublicWifiPageProps) {
                   )}
                 </button>
               </div>
+
               <p
                 className="font-mono text-base font-bold tracking-tight select-all truncate"
                 style={{ color: theme.textPrimary }}
@@ -356,7 +345,6 @@ export function PublicWifiPage(props: PublicWifiPageProps) {
           )}
         </div>
 
-        {/* Instrução Opcional */}
         {data.instructions && (
           <p
             className="text-xs text-center mt-4 px-2 leading-relaxed"
@@ -366,16 +354,19 @@ export function PublicWifiPage(props: PublicWifiPageProps) {
           </p>
         )}
 
-        {/* BOTÃO PRINCIPAL: COPIAR SENHA */}
         {data.wifiPassword && (
           <div className="mt-6">
             <button
               type="button"
               onClick={handleCopyPassword}
-              className={`w-full py-4 px-6 rounded-2xl font-extrabold text-sm uppercase tracking-wider shadow-lg flex items-center justify-center gap-2.5 transition-all duration-200 active:scale-[0.98] cursor-pointer`}
+              className="w-full py-4 px-6 rounded-2xl font-extrabold text-sm uppercase tracking-wider shadow-lg flex items-center justify-center gap-2.5 transition-all duration-200 active:scale-[0.98] cursor-pointer"
               style={{
-                backgroundColor: passwordCopied ? '#10b981' : theme.buttonBg,
-                color: passwordCopied ? '#ffffff' : theme.buttonText,
+                backgroundColor: passwordCopied
+                  ? '#10b981'
+                  : theme.buttonBg,
+                color: passwordCopied
+                  ? '#ffffff'
+                  : theme.buttonText,
                 boxShadow: passwordCopied
                   ? '0 10px 25px -5px rgba(16, 185, 129, 0.4)'
                   : '0 10px 25px -5px rgba(0, 0, 0, 0.25)',
@@ -396,7 +387,6 @@ export function PublicWifiPage(props: PublicWifiPageProps) {
           </div>
         )}
 
-        {/* Feedback visual sutil sobre conectar */}
         <div className="mt-4 text-center">
           <p
             className="text-[11px] font-medium"
