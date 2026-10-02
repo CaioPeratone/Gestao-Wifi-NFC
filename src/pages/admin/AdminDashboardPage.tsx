@@ -8,6 +8,7 @@ import {
   updateClient,
   deleteClient,
   toggleClientStatus,
+  togglePixModule,
 } from '../../services/clientService';
 import { Header } from '../../components/common/Header';
 import { ClientCard } from '../../components/admin/ClientCard';
@@ -139,7 +140,15 @@ export function AdminDashboardPage() {
           .includes(search) ||
         client.publicId
           .toLowerCase()
-          .includes(search);
+          .includes(search) ||
+        (client.pixPublicId &&
+          client.pixPublicId
+            .toLowerCase()
+            .includes(search)) ||
+        (client.pixKey &&
+          client.pixKey
+            .toLowerCase()
+            .includes(search));
 
       const matchesStatus =
         statusFilter === 'all' ||
@@ -218,7 +227,8 @@ export function AdminDashboardPage() {
       try {
         await deleteClient(
           clientToDelete.id,
-          clientToDelete.publicId
+          clientToDelete.publicId,
+          clientToDelete.pixPublicId
         );
 
         showToast(
@@ -254,18 +264,53 @@ export function AdminDashboardPage() {
 
       showToast(
         newStatus
-          ? `Página de ${client.businessName} ativada!`
-          : `Página de ${client.businessName} desativada!`,
+          ? `Módulo Wi-Fi de ${client.businessName} ativado!`
+          : `Módulo Wi-Fi de ${client.businessName} desativado!`,
         'info'
       );
     } catch (err) {
       console.error(
-        'Erro ao alternar status:',
+        'Erro ao alternar status do Wi-Fi:',
         err
       );
 
       showToast(
         'Erro ao atualizar status',
+        'error'
+      );
+    }
+  };
+
+  const handleTogglePixStatus = async (
+    client: Client
+  ) => {
+    if (!client.pixPublicId) {
+      handleOpenEditModal(client);
+      return;
+    }
+
+    try {
+      const newStatus =
+        await togglePixModule(
+          client.id,
+          client.pixPublicId,
+          Boolean(client.pixEnabled)
+        );
+
+      showToast(
+        newStatus
+          ? `Módulo PIX de ${client.businessName} ativado!`
+          : `Módulo PIX de ${client.businessName} desativado!`,
+        'info'
+      );
+    } catch (err) {
+      console.error(
+        'Erro ao alternar status do PIX:',
+        err
+      );
+
+      showToast(
+        'Erro ao atualizar status do PIX',
         'error'
       );
     }
@@ -460,6 +505,9 @@ export function AdminDashboardPage() {
                   }
                   onToggleStatus={
                     handleToggleStatus
+                  }
+                  onTogglePixStatus={
+                    handleTogglePixStatus
                   }
                   onShowQr={
                     handleOpenQrModal

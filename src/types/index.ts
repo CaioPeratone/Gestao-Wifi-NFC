@@ -1,15 +1,28 @@
+export type PixKeyType = 'CPF' | 'CNPJ' | 'EMAIL' | 'TELEFONE' | 'ALEATORIA';
+
 export interface Client {
   id: string;
-  publicId: string;
+  publicId: string; // Permanent Wi-Fi Public ID
   businessName: string;
   ssid: string;
   wifiPassword?: string;
   backgroundColor: string;
-  active: boolean;
+  active: boolean; // Wi-Fi module status
   customTitle?: string;
   instructions?: string;
   createdAt: any;
   updatedAt: any;
+
+  // Módulo PIX (Opcional - Retrocompatível)
+  pixEnabled?: boolean;
+  pixPublicId?: string; // Permanent PIX Public ID (generated once enabled, never changes)
+  pixKey?: string;
+  pixKeyType?: PixKeyType;
+  pixReceiverName?: string;
+  pixCity?: string;
+  pixAmount?: string;
+  pixDescription?: string;
+  pixBackgroundColor?: string;
 }
 
 export interface PublicWifiData {
@@ -24,6 +37,20 @@ export interface PublicWifiData {
   updatedAt?: any;
 }
 
+export interface PublicPixData {
+  pixPublicId: string;
+  businessName: string;
+  pixKey: string;
+  pixKeyType: PixKeyType;
+  pixReceiverName: string;
+  pixCity: string;
+  pixAmount?: string;
+  pixDescription?: string;
+  pixBackgroundColor: string;
+  active: boolean;
+  updatedAt?: any;
+}
+
 export interface ClientFormData {
   businessName: string;
   ssid: string;
@@ -32,6 +59,17 @@ export interface ClientFormData {
   active: boolean;
   customTitle?: string;
   instructions?: string;
+
+  // Módulo PIX
+  pixEnabled?: boolean;
+  pixPublicId?: string;
+  pixKey?: string;
+  pixKeyType?: PixKeyType;
+  pixReceiverName?: string;
+  pixCity?: string;
+  pixAmount?: string;
+  pixDescription?: string;
+  pixBackgroundColor?: string;
 }
 
 export interface AdminUser {

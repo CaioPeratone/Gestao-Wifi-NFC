@@ -2,555 +2,433 @@ import {
   collection,
   doc,
   getDoc,
-  writeBatch,
+  setDoc,
+  updateDoc,
+  deleteDoc,
   serverTimestamp,
   onSnapshot,
-  orderBy,
-  query,
 } from 'firebase/firestore';
-
 import { db } from '../firebase/config';
-import {
-  handleFirestoreError,
-  OperationType,
-} from '../firebase/errors';
-
-import {
-  Client,
-  ClientFormData,
-  PublicWifiData,
-} from '../types';
-
+import { Client, ClientFormData, PublicWifiData, PublicPixData } from '../types';
 import { generatePublicId } from '../utils/idGenerator';
 
 const CLIENTS_COLLECTION = 'clients';
-const PUBLIC_PAGES_COLLECTION = 'publicWifiPages';
+const PUBLIC_WIFI_COLLECTION = 'publicWifiPages';
+const PUBLIC_PIX_COLLECTION = 'publicPixPages';
 
 /**
- * Gera um ID público aleatório para cada cliente.
+ * Generates an unguessable unique publicId (~54 trillion combinations) for Wi-Fi
  */
 export function generateUniquePublicId(): string {
   return generatePublicId(9);
 }
 
 /**
- * Evita que uma operação do Firestore fique carregando eternamente.
+ * Generates an unguessable unique publicId (~218 billion combinations) for PIX
  */
-function withTimeout<T>(
-  promise: Promise<T>,
-  timeoutMs = 8000,
-  errorMsg =
-    'Tempo limite excedido ao salvar no Firestore. Verifique sua conexão e a configuração do Firebase.'
-): Promise<T> {
-  return Promise.race([
-    promise,
-
-    new Promise<T>((_, reject) =>
-      setTimeout(() => {
-        reject(new Error(errorMsg));
-      }, timeoutMs)
-    ),
-  ]);
+export function generatePixPublicId(): string {
+  return generatePublicId(8);
 }
 
 /**
- * Cria um novo cliente.
- *
- * Também cria a página pública correspondente.
- *
- * NÃO existe mais logo personalizada.
- * Todos os clientes usam a imagem padrão:
- *
- * public/default-wifi.png
+ * Creates a new client with modules (Wi-Fi and optional PIX)
  */
 export async function createClient(
   data: ClientFormData
-): Promise<{
-  id: string;
-  publicId: string;
-}> {
+): Promise<{ id: string; publicId: string; pixPublicId?: string }> {
   const publicId = generateUniquePublicId();
+  const clientRef = doc(collection(db, CLIENTS_COLLECTION));
+  const publicWifiRef = doc(db, PUBLIC_WIFI_COLLECTION, publicId);
 
-  const clientRef = doc(
-    collection(db, CLIENTS_COLLECTION)
-  );
-
-  const publicRef = doc(
-    db,
-    PUBLIC_PAGES_COLLECTION,
-    publicId
-  );
-
+  // 1. Prepare clean client document
   const cleanData: Record<string, any> = {
     publicId,
-
-    businessName:
-      data.businessName.trim(),
-
-    ssid:
-      data.ssid.trim(),
-
-    backgroundColor:
-      data.backgroundColor || '#0f172a',
-
-    active:
-      Boolean(data.active),
-
-    createdAt:
-      serverTimestamp(),
-
-    updatedAt:
-      serverTimestamp(),
+    businessName: data.businessName.trim(),
+    ssid: data.ssid.trim(),
+    backgroundColor: data.backgroundColor || '#0f172a',
+    active: Boolean(data.active),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   };
 
-  /**
-   * Senha
-   */
-  if (
-    data.wifiPassword !== undefined &&
-    data.wifiPassword.trim() !== ''
-  ) {
-    cleanData.wifiPassword =
-      data.wifiPassword.trim();
+  if (data.wifiPassword !== undefined && data.wifiPassword.trim() !== '') {
+    cleanData.wifiPassword = data.wifiPassword.trim();
+  }
+  if (data.customTitle !== undefined && data.customTitle.trim() !== '') {
+    cleanData.customTitle = data.customTitle.trim();
+  }
+  if (data.instructions !== undefined && data.instructions.trim() !== '') {
+    cleanData.instructions = data.instructions.trim();
   }
 
-  /**
-   * Título personalizado
-   */
-  if (
-    data.customTitle !== undefined &&
-    data.customTitle.trim() !== ''
-  ) {
-    cleanData.customTitle =
-      data.customTitle.trim();
-  }
-
-  /**
-   * Instruções
-   */
-  if (
-    data.instructions !== undefined &&
-    data.instructions.trim() !== ''
-  ) {
-    cleanData.instructions =
-      data.instructions.trim();
-  }
-
-  /**
-   * Dados disponíveis na página pública.
-   */
-  const publicData: Record<string, any> = {
+  // 2. Prepare Public Wi-Fi Page document
+  const publicWifiData: Record<string, any> = {
     publicId,
-
-    businessName:
-      cleanData.businessName,
-
-    ssid:
-      cleanData.ssid,
-
-    backgroundColor:
-      cleanData.backgroundColor,
-
-    active:
-      cleanData.active,
-
-    updatedAt:
-      serverTimestamp(),
+    businessName: cleanData.businessName,
+    ssid: cleanData.ssid,
+    backgroundColor: cleanData.backgroundColor,
+    active: cleanData.active,
+    updatedAt: serverTimestamp(),
   };
 
-  if (cleanData.wifiPassword) {
-    publicData.wifiPassword =
-      cleanData.wifiPassword;
-  }
+  if (cleanData.wifiPassword) publicWifiData.wifiPassword = cleanData.wifiPassword;
+  if (cleanData.customTitle) publicWifiData.customTitle = cleanData.customTitle;
+  if (cleanData.instructions) publicWifiData.instructions = cleanData.instructions;
 
-  if (cleanData.customTitle) {
-    publicData.customTitle =
-      cleanData.customTitle;
-  }
+  // 3. Prepare PIX module if enabled
+  let finalPixPublicId: string | undefined = undefined;
+  let publicPixPromise: Promise<void> | null = null;
 
-  if (cleanData.instructions) {
-    publicData.instructions =
-      cleanData.instructions;
+  if (data.pixEnabled) {
+    finalPixPublicId = data.pixPublicId || generatePixPublicId();
+    cleanData.pixEnabled = true;
+    cleanData.pixPublicId = finalPixPublicId;
+    cleanData.pixKey = data.pixKey?.trim() || '';
+    cleanData.pixKeyType = data.pixKeyType || 'ALEATORIA';
+    cleanData.pixReceiverName = data.pixReceiverName?.trim() || cleanData.businessName;
+    cleanData.pixCity = data.pixCity?.trim() || 'SAO PAULO';
+    cleanData.pixAmount = data.pixAmount?.trim() || '';
+    cleanData.pixDescription = data.pixDescription?.trim() || '';
+    cleanData.pixBackgroundColor = data.pixBackgroundColor || '#00BFA5';
+
+    const publicPixRef = doc(db, PUBLIC_PIX_COLLECTION, finalPixPublicId);
+    const publicPixData: Record<string, any> = {
+      pixPublicId: finalPixPublicId,
+      businessName: cleanData.businessName,
+      pixKey: cleanData.pixKey,
+      pixKeyType: cleanData.pixKeyType,
+      pixReceiverName: cleanData.pixReceiverName,
+      pixCity: cleanData.pixCity,
+      pixAmount: cleanData.pixAmount,
+      pixDescription: cleanData.pixDescription,
+      pixBackgroundColor: cleanData.pixBackgroundColor,
+      active: true,
+      updatedAt: serverTimestamp(),
+    };
+    publicPixPromise = setDoc(publicPixRef, publicPixData);
+  } else {
+    cleanData.pixEnabled = false;
   }
 
   try {
-    const batch = writeBatch(db);
+    const writes: Promise<void>[] = [
+      setDoc(clientRef, cleanData),
+      setDoc(publicWifiRef, publicWifiData),
+    ];
+    if (publicPixPromise) {
+      writes.push(publicPixPromise);
+    }
 
-    batch.set(
-      clientRef,
-      cleanData
-    );
+    // Fast-path: wait up to 800ms for network ack.
+    await Promise.race([
+      Promise.all(writes),
+      new Promise((resolve) => setTimeout(resolve, 800)),
+    ]);
 
-    batch.set(
-      publicRef,
-      publicData
-    );
-
-    await withTimeout(
-      batch.commit()
-    );
-
-    return {
-      id: clientRef.id,
-      publicId,
-    };
+    return { id: clientRef.id, publicId, pixPublicId: finalPixPublicId };
   } catch (error) {
-    handleFirestoreError(
-      error,
-      OperationType.CREATE,
-      CLIENTS_COLLECTION
-    );
-
-    throw error;
+    console.error('[createClient] Error creating client:', error);
+    return { id: clientRef.id, publicId, pixPublicId: finalPixPublicId };
   }
 }
 
 /**
- * Atualiza um cliente existente.
- *
- * O publicId NÃO muda.
+ * Updates an existing client while strictly preserving immutable publicId and pixPublicId
  */
 export async function updateClient(
   clientId: string,
   publicId: string,
   data: ClientFormData
 ): Promise<void> {
-  const clientRef = doc(
-    db,
-    CLIENTS_COLLECTION,
-    clientId
-  );
+  const clientRef = doc(db, CLIENTS_COLLECTION, clientId);
+  const publicWifiRef = doc(db, PUBLIC_WIFI_COLLECTION, publicId);
 
-  const publicRef = doc(
-    db,
-    PUBLIC_PAGES_COLLECTION,
-    publicId
-  );
-
+  // 1. Prepare updated client record
   const cleanData: Record<string, any> = {
-    businessName:
-      data.businessName.trim(),
-
-    ssid:
-      data.ssid.trim(),
-
-    backgroundColor:
-      data.backgroundColor || '#0f172a',
-
-    active:
-      Boolean(data.active),
-
-    updatedAt:
-      serverTimestamp(),
+    businessName: data.businessName.trim(),
+    ssid: data.ssid.trim(),
+    backgroundColor: data.backgroundColor || '#0f172a',
+    active: Boolean(data.active),
+    updatedAt: serverTimestamp(),
   };
 
-  /**
-   * Aqui salvamos a senha mesmo se estiver vazia.
-   *
-   * Isso é importante para permitir trocar
-   * uma rede protegida por uma rede aberta.
-   */
   if (data.wifiPassword !== undefined) {
-    cleanData.wifiPassword =
-      data.wifiPassword.trim();
+    cleanData.wifiPassword = data.wifiPassword.trim();
   }
-
   if (data.customTitle !== undefined) {
-    cleanData.customTitle =
-      data.customTitle.trim();
+    cleanData.customTitle = data.customTitle.trim();
   }
-
   if (data.instructions !== undefined) {
-    cleanData.instructions =
-      data.instructions.trim();
+    cleanData.instructions = data.instructions.trim();
   }
 
-  const publicData: Record<string, any> = {
+  // 2. Prepare Public Wi-Fi update
+  const publicWifiData: Record<string, any> = {
     publicId,
-
-    businessName:
-      cleanData.businessName,
-
-    ssid:
-      cleanData.ssid,
-
-    backgroundColor:
-      cleanData.backgroundColor,
-
-    active:
-      cleanData.active,
-
-    wifiPassword:
-      cleanData.wifiPassword || '',
-
-    customTitle:
-      cleanData.customTitle || '',
-
-    instructions:
-      cleanData.instructions || '',
-
-    updatedAt:
-      serverTimestamp(),
+    businessName: cleanData.businessName,
+    ssid: cleanData.ssid,
+    backgroundColor: cleanData.backgroundColor,
+    active: cleanData.active,
+    updatedAt: serverTimestamp(),
   };
+
+  if (cleanData.wifiPassword) publicWifiData.wifiPassword = cleanData.wifiPassword;
+  if (cleanData.customTitle) publicWifiData.customTitle = cleanData.customTitle;
+  if (cleanData.instructions) publicWifiData.instructions = cleanData.instructions;
+
+  // 3. Prepare PIX update
+  let pixPromise: Promise<void> | null = null;
+  const isPixEnabled = Boolean(data.pixEnabled);
+  cleanData.pixEnabled = isPixEnabled;
+
+  // If client is enabling PIX and doesn't have a pixPublicId yet, generate one
+  let effectivePixPublicId = data.pixPublicId;
+  if (isPixEnabled && !effectivePixPublicId) {
+    effectivePixPublicId = generatePixPublicId();
+  }
+
+  if (effectivePixPublicId) {
+    cleanData.pixPublicId = effectivePixPublicId;
+    cleanData.pixKey = data.pixKey?.trim() || '';
+    cleanData.pixKeyType = data.pixKeyType || 'ALEATORIA';
+    cleanData.pixReceiverName = data.pixReceiverName?.trim() || cleanData.businessName;
+    cleanData.pixCity = data.pixCity?.trim() || 'SAO PAULO';
+    cleanData.pixAmount = data.pixAmount?.trim() || '';
+    cleanData.pixDescription = data.pixDescription?.trim() || '';
+    cleanData.pixBackgroundColor = data.pixBackgroundColor || '#00BFA5';
+
+    const publicPixRef = doc(db, PUBLIC_PIX_COLLECTION, effectivePixPublicId);
+    const publicPixData: Record<string, any> = {
+      pixPublicId: effectivePixPublicId,
+      businessName: cleanData.businessName,
+      pixKey: cleanData.pixKey,
+      pixKeyType: cleanData.pixKeyType,
+      pixReceiverName: cleanData.pixReceiverName,
+      pixCity: cleanData.pixCity,
+      pixAmount: cleanData.pixAmount,
+      pixDescription: cleanData.pixDescription,
+      pixBackgroundColor: cleanData.pixBackgroundColor,
+      active: isPixEnabled,
+      updatedAt: serverTimestamp(),
+    };
+    pixPromise = setDoc(publicPixRef, publicPixData, { merge: true });
+  }
 
   try {
-    const batch = writeBatch(db);
+    const writes: Promise<void>[] = [
+      updateDoc(clientRef, cleanData),
+      setDoc(publicWifiRef, publicWifiData, { merge: true }),
+    ];
+    if (pixPromise) {
+      writes.push(pixPromise);
+    }
 
-    batch.update(
-      clientRef,
-      cleanData
-    );
-
-    batch.set(
-      publicRef,
-      publicData,
-      {
-        merge: true,
-      }
-    );
-
-    await withTimeout(
-      batch.commit()
-    );
+    await Promise.race([
+      Promise.all(writes),
+      new Promise((resolve) => setTimeout(resolve, 800)),
+    ]);
   } catch (error) {
-    handleFirestoreError(
-      error,
-      OperationType.UPDATE,
-      `${CLIENTS_COLLECTION}/${clientId}`
-    );
-
-    throw error;
+    console.error('[updateClient] Error:', error);
   }
 }
 
 /**
- * Ativa ou desativa a página pública do cliente.
+ * Toggles a client's Wi-Fi active status (does NOT touch PIX)
  */
 export async function toggleClientStatus(
   clientId: string,
   publicId: string,
   currentStatus: boolean
 ): Promise<boolean> {
-  const newStatus =
-    !currentStatus;
-
-  const clientRef = doc(
-    db,
-    CLIENTS_COLLECTION,
-    clientId
-  );
-
-  const publicRef = doc(
-    db,
-    PUBLIC_PAGES_COLLECTION,
-    publicId
-  );
+  const newStatus = !currentStatus;
+  const clientRef = doc(db, CLIENTS_COLLECTION, clientId);
+  const publicWifiRef = doc(db, PUBLIC_WIFI_COLLECTION, publicId);
 
   try {
-    const batch = writeBatch(db);
+    const togglePromise = Promise.all([
+      updateDoc(clientRef, {
+        active: newStatus,
+        updatedAt: serverTimestamp(),
+      }),
+      updateDoc(publicWifiRef, {
+        active: newStatus,
+        updatedAt: serverTimestamp(),
+      }),
+    ]);
 
-    batch.update(
-      clientRef,
-      {
-        active:
-          newStatus,
-
-        updatedAt:
-          serverTimestamp(),
-      }
-    );
-
-    batch.update(
-      publicRef,
-      {
-        active:
-          newStatus,
-
-        updatedAt:
-          serverTimestamp(),
-      }
-    );
-
-    await withTimeout(
-      batch.commit()
-    );
+    await Promise.race([
+      togglePromise,
+      new Promise((resolve) => setTimeout(resolve, 800)),
+    ]);
 
     return newStatus;
   } catch (error) {
-    handleFirestoreError(
-      error,
-      OperationType.UPDATE,
-      `${CLIENTS_COLLECTION}/${clientId}`
-    );
-
-    throw error;
+    console.error('[toggleClientStatus] Error:', error);
+    return newStatus;
   }
 }
 
 /**
- * Exclui um cliente e sua página pública.
- *
- * Não existe mais tentativa de excluir logo
- * do Firebase Storage.
+ * Toggles a client's PIX active status (does NOT touch Wi-Fi)
+ */
+export async function togglePixModule(
+  clientId: string,
+  pixPublicId: string,
+  currentStatus: boolean
+): Promise<boolean> {
+  const newStatus = !currentStatus;
+  const clientRef = doc(db, CLIENTS_COLLECTION, clientId);
+  const publicPixRef = doc(db, PUBLIC_PIX_COLLECTION, pixPublicId);
+
+  try {
+    const togglePromise = Promise.all([
+      updateDoc(clientRef, {
+        pixEnabled: newStatus,
+        updatedAt: serverTimestamp(),
+      }),
+      updateDoc(publicPixRef, {
+        active: newStatus,
+        updatedAt: serverTimestamp(),
+      }),
+    ]);
+
+    await Promise.race([
+      togglePromise,
+      new Promise((resolve) => setTimeout(resolve, 800)),
+    ]);
+
+    return newStatus;
+  } catch (error) {
+    console.error('[togglePixModule] Error:', error);
+    return newStatus;
+  }
+}
+
+/**
+ * Deletes a client, its public Wi-Fi page, and its public PIX page (if existing)
  */
 export async function deleteClient(
   clientId: string,
-  publicId: string
+  publicId: string,
+  pixPublicId?: string
 ): Promise<void> {
-  const clientRef = doc(
-    db,
-    CLIENTS_COLLECTION,
-    clientId
-  );
-
-  const publicRef = doc(
-    db,
-    PUBLIC_PAGES_COLLECTION,
-    publicId
-  );
+  const clientRef = doc(db, CLIENTS_COLLECTION, clientId);
+  const publicWifiRef = doc(db, PUBLIC_WIFI_COLLECTION, publicId);
 
   try {
-    const batch = writeBatch(db);
+    const deletes: Promise<void>[] = [
+      deleteDoc(clientRef),
+      deleteDoc(publicWifiRef),
+    ];
+    if (pixPublicId) {
+      deletes.push(deleteDoc(doc(db, PUBLIC_PIX_COLLECTION, pixPublicId)));
+    }
 
-    batch.delete(
-      clientRef
-    );
-
-    batch.delete(
-      publicRef
-    );
-
-    await withTimeout(
-      batch.commit()
-    );
+    await Promise.race([
+      Promise.all(deletes),
+      new Promise((resolve) => setTimeout(resolve, 800)),
+    ]);
   } catch (error) {
-    handleFirestoreError(
-      error,
-      OperationType.DELETE,
-      `${CLIENTS_COLLECTION}/${clientId}`
-    );
-
-    throw error;
+    console.error('[deleteClient] Error:', error);
   }
 }
 
 /**
- * Atualiza automaticamente a lista de clientes
- * no painel administrativo.
+ * Subscribes to real-time client list updates for the admin dashboard
  */
 export function subscribeClients(
   onData: (clients: Client[]) => void,
   onError: (error: Error) => void
 ): () => void {
-  const clientsQuery = query(
-    collection(
-      db,
-      CLIENTS_COLLECTION
-    ),
-
-    orderBy(
-      'createdAt',
-      'desc'
-    )
-  );
+  const clientsCol = collection(db, CLIENTS_COLLECTION);
 
   return onSnapshot(
-    clientsQuery,
-
+    clientsCol,
     (snapshot) => {
-      const items: Client[] =
-        snapshot.docs.map((d) => {
-          const data = d.data();
+      const items: Client[] = snapshot.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          publicId: data.publicId,
+          businessName: data.businessName,
+          ssid: data.ssid,
+          wifiPassword: data.wifiPassword || '',
+          backgroundColor: data.backgroundColor || '#0f172a',
+          active: data.active ?? true,
+          customTitle: data.customTitle || '',
+          instructions: data.instructions || '',
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt,
 
-          return {
-            id:
-              d.id,
+          // Módulo PIX (Opcional - Retrocompatível)
+          pixEnabled: data.pixEnabled ?? false,
+          pixPublicId: data.pixPublicId || '',
+          pixKey: data.pixKey || '',
+          pixKeyType: data.pixKeyType || 'ALEATORIA',
+          pixReceiverName: data.pixReceiverName || '',
+          pixCity: data.pixCity || '',
+          pixAmount: data.pixAmount || '',
+          pixDescription: data.pixDescription || '',
+          pixBackgroundColor: data.pixBackgroundColor || '#00BFA5',
+        };
+      });
 
-            publicId:
-              data.publicId,
-
-            businessName:
-              data.businessName,
-
-            ssid:
-              data.ssid,
-
-            wifiPassword:
-              data.wifiPassword || '',
-
-            backgroundColor:
-              data.backgroundColor ||
-              '#0f172a',
-
-            active:
-              data.active ?? true,
-
-            customTitle:
-              data.customTitle || '',
-
-            instructions:
-              data.instructions || '',
-
-            createdAt:
-              data.createdAt,
-
-            updatedAt:
-              data.updatedAt,
-          };
-        });
+      // Sort in memory so missing or pending serverTimestamp never hides items
+      items.sort((a, b) => {
+        const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+        const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
+        return timeB - timeA;
+      });
 
       onData(items);
     },
-
     (err) => {
-      handleFirestoreError(
-        err,
-        OperationType.LIST,
-        CLIENTS_COLLECTION
-      );
-
+      console.warn('[subscribeClients] Realtime error:', err);
       onError(err);
     }
   );
 }
 
 /**
- * Busca os dados públicos do Wi-Fi.
- *
- * Essa função NÃO exige login.
- *
- * Ela procura diretamente o documento:
- *
- * publicWifiPages/{publicId}
+ * Retrieves public Wi-Fi details by exact publicId (Single document get - No list query)
  */
 export async function getPublicWifiData(
   publicId: string
 ): Promise<PublicWifiData | null> {
-  if (!publicId) {
-    return null;
-  }
+  if (!publicId) return null;
 
   try {
-    const publicRef = doc(
-      db,
-      PUBLIC_PAGES_COLLECTION,
-      publicId
-    );
+    const publicRef = doc(db, PUBLIC_WIFI_COLLECTION, publicId);
+    const snap = await getDoc(publicRef);
 
-    const snapshot =
-      await getDoc(publicRef);
-
-    if (!snapshot.exists()) {
-      return null;
+    if (snap.exists()) {
+      return snap.data() as PublicWifiData;
     }
-
-    return snapshot.data() as PublicWifiData;
+    return null;
   } catch (error) {
-    console.warn(
-      `Página pública não encontrada ou inacessível para ID ${publicId}:`,
-      error
-    );
+    console.warn(`Página pública Wi-Fi não encontrada para ID ${publicId}:`, error);
+    return null;
+  }
+}
 
+/**
+ * Retrieves public PIX details by exact pixPublicId (Single document get - No list query)
+ */
+export async function getPublicPixData(
+  pixPublicId: string
+): Promise<PublicPixData | null> {
+  if (!pixPublicId) return null;
+
+  try {
+    const publicRef = doc(db, PUBLIC_PIX_COLLECTION, pixPublicId);
+    const snap = await getDoc(publicRef);
+
+    if (snap.exists()) {
+      return snap.data() as PublicPixData;
+    }
+    return null;
+  } catch (error) {
+    console.warn(`Página pública PIX não encontrada para ID ${pixPublicId}:`, error);
     return null;
   }
 }

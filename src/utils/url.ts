@@ -83,11 +83,35 @@ export function getPublicWifiUrl(publicId: string): string {
 }
 
 /**
- * Returns the local query path for testing
+ * Returns the local query path for testing Wi-Fi
  */
 export function getLocalWifiPath(publicId: string): string {
   if (!publicId) return '';
   return `/?wifi=${encodeURIComponent(publicId)}`;
+}
+
+/**
+ * Centralized function to generate the definitive public PIX URL for GitHub Pages.
+ *
+ * Format:
+ * `${PUBLIC_BASE_URL}?pix=${pixPublicId}`
+ *
+ * Example:
+ * https://linknfc.github.io/?pix=K92mxP7Q
+ */
+export function getPublicPixUrl(pixPublicId: string): string {
+  if (!pixPublicId) return '';
+  const baseUrl = getPublicBaseUrl();
+  const cleanBase = baseUrl.replace(/\/+$/, '');
+  return `${cleanBase}/?pix=${encodeURIComponent(pixPublicId)}`;
+}
+
+/**
+ * Returns the local query path for testing PIX
+ */
+export function getLocalPixPath(pixPublicId: string): string {
+  if (!pixPublicId) return '';
+  return `/?pix=${encodeURIComponent(pixPublicId)}`;
 }
 
 /**

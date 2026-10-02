@@ -41,9 +41,15 @@ export function DeleteConfirmModal({
         <div className="flex items-start gap-3.5 p-3.5 bg-rose-950/40 border border-rose-900/50 rounded-xl">
           <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
           <div className="text-xs text-rose-200 leading-relaxed">
-            Esta ação é irreversível. A página pública{' '}
-            <span className="font-mono font-bold">/wifi/{client.publicId}</span>{' '}
-            será removida e a placa NFC com este link deixará de funcionar.
+            Esta ação é irreversível. A página pública de Wi-Fi{' '}
+            <span className="font-mono font-bold">?wifi={client.publicId}</span>
+            {client.pixPublicId ? (
+              <>
+                {' '}e a página de PIX{' '}
+                <span className="font-mono font-bold">?pix={client.pixPublicId}</span>
+              </>
+            ) : null}{' '}
+            serão removidas e as tags NFC deixarão de funcionar.
           </div>
         </div>
 
