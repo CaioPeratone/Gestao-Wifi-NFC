@@ -94,11 +94,6 @@
           "description": "Senha da rede Wi-Fi",
           "maxLength": 128
         },
-        "logoUrl": {
-          "type": "string",
-          "description": "URL da imagem de logo",
-          "maxLength": 2048
-        },
         "backgroundColor": {
           "type": "string",
           "description": "Cor hexadecimal de fundo",
@@ -125,6 +120,69 @@
         }
       },
       "required": ["publicId", "businessName", "ssid", "active", "backgroundColor"]
+    },
+    "PublicPixPage": {
+      "title": "PublicPixPage",
+      "description": "Dados públicos para exibição do módulo PIX em ?pix={pixPublicId}",
+      "type": "object",
+      "properties": {
+        "pixPublicId": {
+          "type": "string",
+          "description": "ID público exclusivo e permanente da placa PIX",
+          "minLength": 6,
+          "maxLength": 64
+        },
+        "businessName": {
+          "type": "string",
+          "description": "Nome do estabelecimento ou beneficiário",
+          "maxLength": 120
+        },
+        "pixKey": {
+          "type": "string",
+          "description": "Chave PIX do recebedor",
+          "maxLength": 128
+        },
+        "pixKeyType": {
+          "type": "string",
+          "description": "Tipo da chave: CPF, CNPJ, EMAIL, TELEFONE ou ALEATORIA",
+          "enum": ["CPF", "CNPJ", "EMAIL", "TELEFONE", "ALEATORIA"]
+        },
+        "pixReceiverName": {
+          "type": "string",
+          "description": "Nome completo do titular recebedor da conta",
+          "maxLength": 120
+        },
+        "pixCity": {
+          "type": "string",
+          "description": "Cidade do recebedor (ex: SAO PAULO)",
+          "maxLength": 60
+        },
+        "pixAmount": {
+          "type": "string",
+          "description": "Valor opcional fixo em reais (ex: 50.00)",
+          "maxLength": 30
+        },
+        "pixDescription": {
+          "type": "string",
+          "description": "Descrição opcional da cobrança",
+          "maxLength": 200
+        },
+        "pixBackgroundColor": {
+          "type": "string",
+          "description": "Cor hexadecimal da página PIX",
+          "maxLength": 16
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Status de ativação do módulo PIX para este cliente"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp da última atualização"
+        }
+      },
+      "required": ["pixPublicId", "businessName", "pixKey", "pixKeyType", "pixReceiverName", "pixCity", "pixBackgroundColor", "active"]
     },
     "AdminWhitelist": {
       "title": "AdminWhitelist",
@@ -158,6 +216,10 @@
     "/publicWifiPages/{publicId}": {
       "schema": "#/entities/PublicWifiPage",
       "description": "Coleção de projeção pública para acesso individual e direto via URL NFC /wifi/{publicId}. Listagem bloqueada por regras."
+    },
+    "/publicPixPages/{pixPublicId}": {
+      "schema": "#/entities/PublicPixPage",
+      "description": "Coleção de projeção pública para acesso individual e direto via URL NFC ?pix={pixPublicId}."
     },
     "/admins/{uid}": {
       "schema": "#/entities/AdminWhitelist",

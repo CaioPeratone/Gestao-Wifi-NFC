@@ -8,5 +8,8 @@ service cloud.firestore {
     match /publicWifiPages/{publicId} {
       allow read, write: if true;
     }
+    match /publicPixPages/{pixPublicId} {
+      allow read, write: if true;
+    }
   }
 }
